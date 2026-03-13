@@ -1,11 +1,6 @@
-# =========================
-# MEERA – PERSONALIZED MIRROR
-# =========================
-
 import speech_recognition as sr
 import asyncio
 import edge_tts
-import playsound
 import os
 import requests
 import feedparser
@@ -14,6 +9,7 @@ import tkinter as tk
 import threading
 import time
 import sys
+from playsound import playsound
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -31,7 +27,8 @@ async def speak(text):
     file = "meera.mp3"
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(file)
-    playsound.playsound(file)
+
+    playsound(file)
     os.remove(file)
 
 def speak_sync(text):
@@ -68,31 +65,31 @@ rss_feeds = [
 
 def read_news():
     count = 0
+
     for feed_url in rss_feeds:
         feed = feedparser.parse(feed_url)
-        for entry in feed.entries:
-            published = entry.get("published", "")
-            try:
-                pub_date = datetime.strptime(published[:16], "%a, %d %b %Y").date()
-            except:
-                continue
 
-            if pub_date == date.today():
+        for entry in feed.entries:
+            try:
                 speak_sync(entry.title)
                 count += 1
+
                 if count == 3:
                     return
+
+            except:
+                pass
 
     speak_sync("No fresh news found today.")
 
 # -------------------------
-# TIME WINDOW (TKINTER)
+# CLOCK WINDOW
 # -------------------------
 def time_window():
     root = tk.Tk()
-    root.title("Meera Mirror – Time")
+    root.title("Meera Mirror")
 
-    label = tk.Label(root, font=("Arial", 32))
+    label = tk.Label(root, font=("Arial", 30))
     label.pack()
 
     def update():
@@ -107,40 +104,60 @@ threading.Thread(target=time_window, daemon=True).start()
 # -------------------------
 # SPEECH RECOGNITION
 # -------------------------
-r = sr.Recognizer()
-mic = sr.Microphone()
+recognizer = sr.Recognizer()
+
+# USB microphone stable config
+mic = sr.Microphone(device_index=2, sample_rate=16000)
 
 speak_sync("Meera system is ready. Say activate.")
 
 while True:
+
     with mic as source:
-        r.adjust_for_ambient_noise(source, duration=0.5)
+
+        recognizer.adjust_for_ambient_noise(source, duration=0.5)
+
         try:
-            audio = r.listen(source, timeout=5, phrase_time_limit=4)
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=4)
         except:
             continue
 
     try:
-        command = r.recognize_google(audio).lower()
+        command = recognizer.recognize_google(audio).lower()
+
         print("Heard:", command)
 
         if "activate" in command:
+
             speak_sync("Hi, I am Meera, your personalized mirror.")
 
         elif "time" in command:
+
             now = datetime.now().strftime("%d %B %Y %H:%M")
+
             speak_sync(f"The current time is {now}")
 
         elif "weather" in command:
+
             speak_sync("Please tell me the city name")
+
             with mic as source:
-                audio = r.listen(source, timeout=5, phrase_time_limit=5)
-                city = r.recognize_google(audio)
+
+                audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
+
+                city = recognizer.recognize_google(audio)
+
                 get_weather(city)
 
         elif "news" in command:
+
             speak_sync("Here are today's top news")
+
             read_news()
 
-    except:
+    except sr.UnknownValueError:
         pass
+
+    except sr.RequestError:
+        speak_sync("Internet connection problem.")
+
