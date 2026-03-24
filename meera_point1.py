@@ -182,13 +182,13 @@ WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather?"
 VOICE = "en-IN-NeerjaNeural"
 
 # -------------------------
-# SPEAK (mpg123 use)
+# SPEAK (STABLE)
 # -------------------------
 async def speak(text):
     file = "meera.mp3"
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(file)
-    os.system(f"mpg123 {file}")
+    os.system(f"mpg123 {file} > /dev/null 2>&1")
     os.remove(file)
 
 def speak_sync(text):
@@ -232,7 +232,7 @@ def read_news():
                 return
 
 # -------------------------
-# GUI (FIXED)
+# GUI (TIME DISPLAY)
 # -------------------------
 def time_window():
     try:
@@ -240,37 +240,41 @@ def time_window():
         root.title("Meera Mirror")
 
         label = tk.Label(root, font=("Arial", 30), fg="white", bg="black")
-        label.pack()
+        label.pack(fill="both", expand=True)
 
         def update():
-            label.config(text=time.strftime("%d %B %Y\n%H:%M:%S"))
+            now = time.strftime("%d %B %Y\n%H:%M:%S")
+            label.config(text=now)
             root.after(1000, update)
 
         update()
         root.mainloop()
 
     except:
-        print("GUI not supported (no display)")
+        print("GUI not supported")
 
-# GUI thread start
+# start GUI
 threading.Thread(target=time_window, daemon=True).start()
 
 # -------------------------
-# MIC SETUP (FIXED)
+# MIC SETUP (FINAL FIX)
 # -------------------------
 recognizer = sr.Recognizer()
+recognizer.energy_threshold = 400
+recognizer.pause_threshold = 0.8
 
-# 👉 IMPORTANT: tumhare mic ka index = 2
 mic = sr.Microphone(device_index=2)
 
 speak_sync("Meera system is ready")
 
+# -------------------------
+# MAIN LOOP
+# -------------------------
 while True:
     try:
         with mic as source:
             print("Listening...")
-            recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            audio = recognizer.listen(source, timeout=5)
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=4)
 
         command = recognizer.recognize_google(audio).lower()
         print("Heard:", command)
@@ -285,7 +289,7 @@ while True:
         elif "weather" in command:
             speak_sync("Tell city name")
             with mic as source:
-                audio = recognizer.listen(source)
+                audio = recognizer.listen(source, timeout=5)
                 city = recognizer.recognize_google(audio)
                 get_weather(city)
 
@@ -294,5 +298,5 @@ while True:
             read_news()
 
     except Exception as e:
-        print("Mic error:", e)
+        print("Error:", e)
         continue
