@@ -107,7 +107,7 @@ def time_window():
 recognizer = sr.Recognizer()
 
 # USB microphone stable config
-mic = sr.Microphone(device_index=2, sample_rate=16000)
+mic = sr.Microphone(device_index=2)
 
 speak_sync("Meera system is ready. Say activate.")
 
