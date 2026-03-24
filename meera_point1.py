@@ -171,6 +171,7 @@ import tkinter as tk
 import threading
 import time
 import sys
+from playsound import playsound
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -182,13 +183,13 @@ WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather?"
 VOICE = "en-IN-NeerjaNeural"
 
 # -------------------------
-# SPEAK (FIXED OUTPUT)
+# SPEAK FUNCTION
 # -------------------------
 async def speak(text):
     file = "meera.mp3"
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(file)
-    os.system(f"mpg123 {file}")   # 🔥 speaker fix
+    playsound(file)
     os.remove(file)
 
 def speak_sync(text):
@@ -227,54 +228,55 @@ def read_news():
     count = 0
     for feed_url in rss_feeds:
         feed = feedparser.parse(feed_url)
-
         for entry in feed.entries:
             speak_sync(entry.title)
             count += 1
-
             if count == 3:
                 return
 
 # -------------------------
-# GUI (TIME + DATE)
+# GUI (TIME DISPLAY)
 # -------------------------
 def time_window():
     root = tk.Tk()
     root.title("Meera Mirror")
-    root.geometry("800x480")
 
-    label = tk.Label(root, font=("Arial", 30))
-    label.pack()
+    label = tk.Label(root, font=("Arial", 30), fg="white", bg="black")
+    label.pack(fill="both", expand=True)
 
     def update():
-        now = datetime.now().strftime("%d %B %Y\n%H:%M:%S")
+        now = time.strftime("%d %B %Y\n%H:%M:%S")
         label.config(text=now)
-        root.after(1000, update)
+        label.after(1000, update)
 
     update()
     root.mainloop()
 
-# 🔥 GUI START
+# -------------------------
+# START GUI THREAD
+# -------------------------
 threading.Thread(target=time_window, daemon=True).start()
 
 # -------------------------
 # MIC SETUP
 # -------------------------
 recognizer = sr.Recognizer()
-mic = sr.Microphone(device_index=2)   # 👈 check with arecord -l
+mic = sr.Microphone(device_index=2)
 
-# -------------------------
-# START
-# -------------------------
+# calibrate once
+with mic as source:
+    recognizer.adjust_for_ambient_noise(source, duration=1)
+
 speak_sync("Meera system is ready. Say activate.")
 
+# -------------------------
+# MAIN LOOP
+# -------------------------
 while True:
     with mic as source:
         print("Listening...")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-
         try:
-            audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=4)
         except:
             continue
 
@@ -291,19 +293,18 @@ while True:
 
         elif "weather" in command:
             speak_sync("Tell city name")
-
             with mic as source:
                 audio = recognizer.listen(source, timeout=5)
                 city = recognizer.recognize_google(audio)
                 get_weather(city)
 
         elif "news" in command:
-            speak_sync("Top news")
+            speak_sync("Here are today's news")
             read_news()
 
     except sr.UnknownValueError:
         print("Not understood")
 
     except sr.RequestError:
-        speak_sync("Internet error")
+        speak_sync("Internet problem")
 
