@@ -183,7 +183,7 @@ WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather?"
 VOICE = "en-IN-NeerjaNeural"
 
 # -------------------------
-# SPEAK FUNCTION
+# SPEAK
 # -------------------------
 async def speak(text):
     file = "meera.mp3"
@@ -211,7 +211,6 @@ def get_weather(city):
         desc = data["weather"][0]["description"]
 
         speak_sync(f"{city} temperature is {temp} degree with {desc}")
-
     except:
         speak_sync("Weather error")
 
@@ -235,7 +234,7 @@ def read_news():
                 return
 
 # -------------------------
-# GUI (TIME DISPLAY)
+# GUI
 # -------------------------
 def time_window():
     root = tk.Tk()
@@ -245,27 +244,35 @@ def time_window():
     label.pack(fill="both", expand=True)
 
     def update():
-        now = time.strftime("%d %B %Y\n%H:%M:%S")
-        label.config(text=now)
+        label.config(text=time.strftime("%d %B %Y\n%H:%M:%S"))
         label.after(1000, update)
 
     update()
     root.mainloop()
 
-# -------------------------
-# START GUI THREAD
-# -------------------------
 threading.Thread(target=time_window, daemon=True).start()
 
 # -------------------------
-# MIC SETUP
+# MIC SETUP (FIXED)
 # -------------------------
 recognizer = sr.Recognizer()
-mic = sr.Microphone(device_index=2)
+recognizer.energy_threshold = 300
+recognizer.pause_threshold = 0.8
 
-# calibrate once
-with mic as source:
-    recognizer.adjust_for_ambient_noise(source, duration=1)
+try:
+    mic = sr.Microphone(device_index=2)
+except:
+    print("Mic not detected")
+    exit()
+
+# calibration ONLY ONCE
+try:
+    with mic as source:
+        print("Calibrating...")
+        recognizer.adjust_for_ambient_noise(source, duration=1)
+except Exception as e:
+    print("Mic error:", e)
+    exit()
 
 speak_sync("Meera system is ready. Say activate.")
 
@@ -273,14 +280,11 @@ speak_sync("Meera system is ready. Say activate.")
 # MAIN LOOP
 # -------------------------
 while True:
-    with mic as source:
-        print("Listening...")
-        try:
-            audio = recognizer.listen(source, timeout=5, phrase_time_limit=4)
-        except:
-            continue
-
     try:
+        with mic as source:
+            print("Listening...")
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=4)
+
         command = recognizer.recognize_google(audio).lower()
         print("Heard:", command)
 
@@ -308,3 +312,5 @@ while True:
     except sr.RequestError:
         speak_sync("Internet problem")
 
+    except Exception as e:
+        print("Error:", e)
