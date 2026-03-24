@@ -171,7 +171,6 @@ import tkinter as tk
 import threading
 import time
 import sys
-from playsound import playsound
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -183,13 +182,13 @@ WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather?"
 VOICE = "en-IN-NeerjaNeural"
 
 # -------------------------
-# SPEAK
+# SPEAK (mpg123 use)
 # -------------------------
 async def speak(text):
     file = "meera.mp3"
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(file)
-    playsound(file)
+    os.system(f"mpg123 {file}")
     os.remove(file)
 
 def speak_sync(text):
@@ -219,14 +218,13 @@ def get_weather(city):
 # -------------------------
 rss_feeds = [
     "https://news.abplive.com/news/india/feed",
-    "https://www.ndtv.com/rss",
-    "https://indianexpress.com/section/india/feed"
+    "https://www.ndtv.com/rss"
 ]
 
 def read_news():
     count = 0
-    for feed_url in rss_feeds:
-        feed = feedparser.parse(feed_url)
+    for url in rss_feeds:
+        feed = feedparser.parse(url)
         for entry in feed.entries:
             speak_sync(entry.title)
             count += 1
@@ -234,62 +232,51 @@ def read_news():
                 return
 
 # -------------------------
-# GUI
+# GUI (FIXED)
 # -------------------------
 def time_window():
-    root = tk.Tk()
-    root.title("Meera Mirror")
+    try:
+        root = tk.Tk()
+        root.title("Meera Mirror")
 
-    label = tk.Label(root, font=("Arial", 30), fg="white", bg="black")
-    label.pack(fill="both", expand=True)
+        label = tk.Label(root, font=("Arial", 30), fg="white", bg="black")
+        label.pack()
 
-    def update():
-        label.config(text=time.strftime("%d %B %Y\n%H:%M:%S"))
-        label.after(1000, update)
+        def update():
+            label.config(text=time.strftime("%d %B %Y\n%H:%M:%S"))
+            root.after(1000, update)
 
-    update()
-    root.mainloop()
+        update()
+        root.mainloop()
 
+    except:
+        print("GUI not supported (no display)")
+
+# GUI thread start
 threading.Thread(target=time_window, daemon=True).start()
 
 # -------------------------
 # MIC SETUP (FIXED)
 # -------------------------
 recognizer = sr.Recognizer()
-recognizer.energy_threshold = 300
-recognizer.pause_threshold = 0.8
 
-try:
-    mic = sr.Microphone(device_index=2)
-except:
-    print("Mic not detected")
-    exit()
+# 👉 IMPORTANT: tumhare mic ka index = 2
+mic = sr.Microphone(device_index=2)
 
-# calibration ONLY ONCE
-try:
-    with mic as source:
-        print("Calibrating...")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-except Exception as e:
-    print("Mic error:", e)
-    exit()
+speak_sync("Meera system is ready")
 
-speak_sync("Meera system is ready. Say activate.")
-
-# -------------------------
-# MAIN LOOP
-# -------------------------
 while True:
     try:
         with mic as source:
             print("Listening...")
-            audio = recognizer.listen(source, timeout=5, phrase_time_limit=4)
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            audio = recognizer.listen(source, timeout=5)
 
         command = recognizer.recognize_google(audio).lower()
         print("Heard:", command)
 
         if "activate" in command:
-            speak_sync("Hi, I am Meera")
+            speak_sync("Hello, I am Meera")
 
         elif "time" in command:
             now = datetime.now().strftime("%d %B %Y %H:%M")
@@ -298,19 +285,14 @@ while True:
         elif "weather" in command:
             speak_sync("Tell city name")
             with mic as source:
-                audio = recognizer.listen(source, timeout=5)
+                audio = recognizer.listen(source)
                 city = recognizer.recognize_google(audio)
                 get_weather(city)
 
         elif "news" in command:
-            speak_sync("Here are today's news")
+            speak_sync("Top news")
             read_news()
 
-    except sr.UnknownValueError:
-        print("Not understood")
-
-    except sr.RequestError:
-        speak_sync("Internet problem")
-
     except Exception as e:
-        print("Error:", e)
+        print("Mic error:", e)
+        continue
