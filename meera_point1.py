@@ -9,23 +9,8 @@ import tkinter as tk
 import threading
 import time
 import sys
-import pytz
-import ctypes
 
 sys.stdout.reconfigure(encoding='utf-8')
-
-# Suppress ALSA errors
-def suppress_alsa_errors():
-    try:
-        ERROR_HANDLER_FUNC = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
-                                               ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
-        def py_error_handler(filename, line, function, err, fmt): pass
-        c_error_handler = ERROR_HANDLER_FUNC(py_error_handler)
-        asound = ctypes.cdll.LoadLibrary('libasound.so.2')
-        asound.snd_lib_error_set_handler(c_error_handler)
-    except:
-        pass
-suppress_alsa_errors()
 
 # -------------------------
 # CONFIG
@@ -35,13 +20,13 @@ WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather?"
 VOICE = "en-IN-NeerjaNeural"
 
 # -------------------------
-# EDGE TTS
+# SPEAK
 # -------------------------
 async def speak(text):
     file = "meera.mp3"
     communicate = edge_tts.Communicate(text, VOICE)
     await communicate.save(file)
-    os.system(f"ffplay -nodisp -autoexit -loglevel quiet {file}")
+    os.system(f"mpg123 -q {file}")
     os.remove(file)
 
 def speak_sync(text):
@@ -55,39 +40,34 @@ def get_weather(city):
         url = f"{WEATHER_URL}q={city},IN&appid={API_KEY}&units=metric"
         data = requests.get(url).json()
         if data["cod"] != 200:
-            speak_sync("Sorry, I could not find that city.")
+            speak_sync("City not found")
             return
         temp = data["main"]["temp"]
         desc = data["weather"][0]["description"]
-        speak_sync(f"The temperature in {city} is {temp} degree Celsius with {desc}")
+        speak_sync(f"{city} temperature is {temp} degree with {desc}")
     except:
-        speak_sync("Weather service is not available right now.")
+        speak_sync("Weather error")
 
 # -------------------------
 # NEWS
 # -------------------------
 rss_feeds = [
     "https://news.abplive.com/news/india/feed",
-    "https://www.ndtv.com/rss",
-    "https://indianexpress.com/section/india/feed"
+    "https://www.ndtv.com/rss"
 ]
 
 def read_news():
     count = 0
-    for feed_url in rss_feeds:
-        feed = feedparser.parse(feed_url)
+    for url in rss_feeds:
+        feed = feedparser.parse(url)
         for entry in feed.entries:
-            try:
-                speak_sync(entry.title)
-                count += 1
-                if count == 3:
-                    return
-            except:
-                pass
-    speak_sync("No fresh news found today.")
+            speak_sync(entry.title)
+            count += 1
+            if count == 3:
+                return
 
 # -------------------------
-# CLOCK WINDOW
+# GUI
 # -------------------------
 def time_window():
     try:
@@ -96,68 +76,48 @@ def time_window():
         label = tk.Label(root, font=("Arial", 30), fg="white", bg="black")
         label.pack()
         def update():
-            IST = pytz.timezone("Asia/Kolkata")
-            now = datetime.now(IST).strftime("%d %B %Y\n%H:%M:%S")
-            label.config(text=now)
-            label.after(1000, update)
+            label.config(text=time.strftime("%d %B %Y\n%H:%M:%S"))
+            root.after(1000, update)
         update()
         root.mainloop()
-    except Exception as e:
-        print(f"GUI not available: {e}")
-        while True:
-            IST = pytz.timezone("Asia/Kolkata")
-            now = datetime.now(IST).strftime("%d %B %Y | %H:%M:%S")
-            print(f"\r{now}", end="")
-            time.sleep(1)
+    except:
+        print("GUI not supported")
 
 threading.Thread(target=time_window, daemon=True).start()
 
 # -------------------------
-# SPEECH RECOGNITION
+# MIC SETUP
 # -------------------------
 recognizer = sr.Recognizer()
 mic = sr.Microphone(device_index=3, sample_rate=44100, chunk_size=1024)
 
-speak_sync("Meera system is ready. Say activate.")
+speak_sync("Meera system is ready")
 
 # -------------------------
 # MAIN LOOP
 # -------------------------
 while True:
-    with mic as source:
-        recognizer.adjust_for_ambient_noise(source, duration=0.5)
-        try:
-            audio = recognizer.listen(source, timeout=15, phrase_time_limit=10)
-        except:
-            continue
-
     try:
+        with mic as source:
+            print("Listening...")
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            audio = recognizer.listen(source, timeout=15, phrase_time_limit=10)
         command = recognizer.recognize_google(audio).lower()
         print("Heard:", command)
-
         if "activate" in command:
-            speak_sync("Hi, I am Meera, your personalized mirror.")
-
+            speak_sync("Hello, I am Meera")
         elif "time" in command:
-            IST = pytz.timezone("Asia/Kolkata")
-            now = datetime.now(IST).strftime("%d %B %Y %H:%M")
-            speak_sync(f"The current time is {now}")
-
+            now = datetime.now().strftime("%d %B %Y %H:%M")
+            speak_sync(f"Time is {now}")
         elif "weather" in command:
-            speak_sync("Please tell me the city name")
+            speak_sync("Tell city name")
             with mic as source:
-                audio = recognizer.listen(source, timeout=10, phrase_time_limit=5)
+                audio = recognizer.listen(source, timeout=10)
                 city = recognizer.recognize_google(audio)
                 get_weather(city)
-
         elif "news" in command:
-            speak_sync("Here are today's top news")
+            speak_sync("Top news")
             read_news()
-
-    except sr.UnknownValueError:
-        pass
-    except sr.RequestError:
-        speak_sync("Internet connection problem.")
     except Exception as e:
-        print("Mic error:", e)
+        print("Error:", e)
         continue
