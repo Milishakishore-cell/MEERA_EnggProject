@@ -99,7 +99,7 @@ def time_window():
     update()
     root.mainloop()
 
-threading.Thread(target=time_window, daemon=True).start()
+#threading.Thread(target=time_window, daemon=True).start()
 
 # -------------------------
 # SPEECH RECOGNITION
