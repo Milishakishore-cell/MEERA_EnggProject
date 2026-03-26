@@ -9,7 +9,6 @@ import tkinter as tk
 import threading
 import time
 import sys
-
 sys.stdout.reconfigure(encoding='utf-8')
 
 # -------------------------
@@ -18,6 +17,42 @@ sys.stdout.reconfigure(encoding='utf-8')
 API_KEY = "1c192646db0e072537706f539e68aa71"
 WEATHER_URL = "http://api.openweathermap.org/data/2.5/weather?"
 VOICE = "en-IN-NeerjaNeural"
+
+# -------------------------
+# GUI SETUP
+# -------------------------
+root = tk.Tk()
+root.title("Meera Mirror")
+root.configure(bg="black")
+root.attributes("-fullscreen", True)
+
+time_label = tk.Label(root, font=("Arial", 35, "bold"), fg="white", bg="black")
+time_label.pack(pady=20)
+
+info_label = tk.Label(root, font=("Arial", 20), fg="cyan", bg="black",
+                      wraplength=460, justify="center")
+info_label.pack(pady=20)
+
+# Clock activated flag
+clock_running = False
+
+def update_clock():
+    if clock_running:
+        now = datetime.now().strftime("%d %B %Y\n%H:%M:%S")
+        time_label.config(text=now)
+    root.after(1000, update_clock)
+
+update_clock()
+
+def start_clock():
+    global clock_running
+    clock_running = True
+
+def show_news(text):
+    info_label.config(text=f"📰 {text}", fg="cyan")
+
+def clear_news():
+    info_label.config(text="")
 
 # -------------------------
 # SPEAK
@@ -61,63 +96,58 @@ def read_news():
     for url in rss_feeds:
         feed = feedparser.parse(url)
         for entry in feed.entries:
+            show_news(entry.title)
+            root.update()
             speak_sync(entry.title)
             count += 1
             if count == 3:
+                clear_news()
                 return
 
 # -------------------------
-# GUI
+# MIC THREAD
 # -------------------------
-def time_window():
-    try:
-        root = tk.Tk()
-        root.title("Meera Mirror")
-        label = tk.Label(root, font=("Arial", 30), fg="white", bg="black")
-        label.pack()
-        def update():
-            label.config(text=time.strftime("%d %B %Y\n%H:%M:%S"))
-            root.after(1000, update)
-        update()
-        root.mainloop()
-    except:
-        print("GUI not supported")
+def meera_thread():
+    recognizer = sr.Recognizer()
+    mic = sr.Microphone(device_index=3, sample_rate=44100, chunk_size=1024)
 
-threading.Thread(target=time_window, daemon=True).start()
+    speak_sync("Meera system is ready")
 
-# -------------------------
-# MIC SETUP
-# -------------------------
-recognizer = sr.Recognizer()
-mic = sr.Microphone(device_index=3, sample_rate=44100, chunk_size=1024)
-
-speak_sync("Meera system is ready")
-
-# -------------------------
-# MAIN LOOP
-# -------------------------
-while True:
-    try:
-        with mic as source:
-            print("Listening...")
-            recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            audio = recognizer.listen(source, timeout=15, phrase_time_limit=10)
-        command = recognizer.recognize_google(audio).lower()
-        print("Heard:", command)
-        if "activate" in command:
-            speak_sync("Hello, I am Meera")
-        elif "time" in command:
-            now = datetime.now().strftime("%d %B %Y %H:%M")
-            speak_sync(f"Time is {now}")
-        elif "weather" in command:
-            speak_sync("Tell city name")
+    while True:
+        try:
             with mic as source:
-                audio = recognizer.listen(source, timeout=10)
-                city = recognizer.recognize_google(audio)
-                get_weather(city)
-        elif "news" in command:
-            speak_sync("Top news")
-            read_news()
-    except Exception as e:
-        print("Error:", e)
-        continue
+                print("Listening...")
+                recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                audio = recognizer.listen(source, timeout=15, phrase_time_limit=10)
+
+            command = recognizer.recognize_google(audio).lower()
+            print("Heard:", command)
+
+            if "activate" in command:
+                start_clock()
+                speak_sync("Hello, I am Meera")
+
+            elif "time" in command:
+                now = datetime.now().strftime("%d %B %Y %H:%M")
+                speak_sync(f"Time is {now}")
+
+            elif "weather" in command:
+                speak_sync("Tell city name")
+                with mic as source:
+                    audio = recognizer.listen(source, timeout=10)
+                    city = recognizer.recognize_google(audio)
+                    get_weather(city)
+
+            elif "news" in command:
+                speak_sync("Top news")
+                read_news()
+
+        except Exception as e:
+            print("Error:", e)
+            continue
+
+# Mic thread start
+threading.Thread(target=meera_thread, daemon=True).start()
+
+# GUI main loop
+root.mainloop()
