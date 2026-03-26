@@ -125,7 +125,7 @@ def meera_thread():
 
             if "activate" in command:
                 start_clock()
-                speak_sync("Hello, I am Meera")
+                speak_sync("Hello, I am Meera,Your personalised companion")
 
             elif "time" in command:
                 now = datetime.now().strftime("%d %B %Y %H:%M")
