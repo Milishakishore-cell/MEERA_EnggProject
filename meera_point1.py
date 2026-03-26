@@ -123,7 +123,7 @@ def meera_thread():
             command = recognizer.recognize_google(audio).lower()
             print("Heard:", command)
 
-            if "activate" in command:
+           if "activate" in command and "deactivate" not in command:
                 start_clock()
                 speak_sync("Hello, I am Meera,Your personalised companion")
 
