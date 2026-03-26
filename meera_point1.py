@@ -143,7 +143,7 @@ def meera_thread():
                 read_news()
             elif "deactivate" in command:
                 speak_sync("Meera is deactivating. Goodbye!")
-                break
+                os._exit(0)
 
         except Exception as e:
             print("Error:", e)
